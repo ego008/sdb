@@ -111,6 +111,22 @@ func main() {
 		fmt.Println(key.String(), value.String())
 	})
 
+	fmt.Println("-- Hscan page")
+	var keyStart []byte
+	ii := 0
+	for {
+		rs := db.Hscan(name, keyStart, 2)
+		if !rs.OK() {
+			break
+		}
+		rs.KvEach(func(key, value sdb.BS) {
+			fmt.Println(key, value)
+			keyStart = key
+			ii++
+		})
+	}
+	fmt.Println(ii)
+
 	fmt.Println("zet set/get")
 	fmt.Println(db.Zset(name, "k1", 12))
 	fmt.Println(db.Zget(name, "k1"))
@@ -159,9 +175,9 @@ func main() {
 	})
 
 	fmt.Println("-- Zscan page")
-	var keyStart []byte
+	keyStart = keyStart[:0]
 	var scourStart []byte
-	ii := 0
+	ii = 0
 	for {
 		rs := db.Zscan(name, keyStart, scourStart, 2)
 		if !rs.OK() {
