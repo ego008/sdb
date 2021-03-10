@@ -6,6 +6,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"log"
+	"strconv"
 )
 
 func main() {
@@ -17,17 +18,13 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	vals := []interface{}{
-		"my value",
-		123456,
+	vals := [][]byte{
+		[]byte("my value"),
 		[]byte("byte value"),
-		[][]byte{[]byte("a"), []byte("b")},
-		[]string{"c", "d"},
-		[]int{7, 8, 9},
 	}
 
 	name := "mytest"
-	key := "mykey"
+	key := []byte("mykey")
 
 	for _, v := range vals {
 		err = db.Hset(name, key, v)
@@ -42,15 +39,19 @@ func main() {
 	}
 
 	// notfound
-	rs := db.Hget("mytest2", "mykey2")
+	rs := db.Hget("mytest2", []byte("mykey2"))
 	if !rs.NotFound() {
 		log.Fatalln(rs.State)
 	}
 	fmt.Println(rs.State, string(rs.String()))
 
 	// hmset + hmget
-	kvs := []interface{}{"k1", "v1", "k2", "v2", "k3", "v3", "k4", "v4", "k5", "v5", "k8", "v8"}
-	err = db.Hmset(name, kvs)
+	var kvs [][]byte
+	for i := 1; i < 9; i++ {
+		kvs = append(kvs, []byte("k"+strconv.Itoa(i)))
+	}
+
+	err = db.Hmset(name, kvs...)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -63,31 +64,31 @@ func main() {
 	})
 
 	//
-	fmt.Println(db.Hdel("count", "mytest"))
-	fmt.Println(db.Hincr("count", "mytest", 12))
-	fmt.Println(db.HgetInt("count", "mytest")) // 12
+	fmt.Println(db.Hdel("count", []byte("mytest")))
+	fmt.Println(db.Hincr("count", []byte("mytest"), 12))
+	fmt.Println(db.HgetInt("count", []byte("mytest"))) // 12
 
 	fmt.Println(db.Hmdel(name, [][]byte{[]byte("k1"), []byte("k2")}))
-	fmt.Println(db.Hget(name, "k1"))
-	fmt.Println(db.Hset(name, "k1", "v11"))
-	fmt.Println(db.Hget(name, "k1"))
+	fmt.Println(db.Hget(name, []byte("k1")))
+	fmt.Println(db.Hset(name, []byte("k1"), []byte("v11")))
+	fmt.Println(db.Hget(name, []byte("k1")))
 	fmt.Println(db.HdelBucket(name))
-	fmt.Println(db.Hget(name, "k1"))
-	fmt.Println(db.HgetInt("count", "mytest")) // 12
+	fmt.Println(db.Hget(name, []byte("k1")))
+	fmt.Println(db.HgetInt("count", []byte("mytest"))) // 12
 
 	fmt.Println(db.HdelBucket(name))
-	_ = db.Hmset(name, kvs)
+	_ = db.Hmset(name, kvs...)
 	fmt.Println("--- Hmget ---")
 	db.Hmget(name, [][]byte{[]byte("k1"), []byte("k2"), []byte("k3"), []byte("k4")}).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), value.String())
 	})
 	fmt.Println("--- Hscan ---")
-	db.Hscan(name, "k2", 2).KvEach(func(key, value sdb.BS) {
+	db.Hscan(name, []byte("k2"), 2).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), value.String())
 	})
 
 	fmt.Println("--- Hscan 2 ---")
-	db.Hscan(name, "k6", 4).KvEach(func(key, value sdb.BS) {
+	db.Hscan(name, []byte("k6"), 4).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), value.String())
 	})
 
@@ -97,12 +98,12 @@ func main() {
 	})
 
 	fmt.Println("--- Hrscan ---")
-	db.Hrscan(name, "k5", 2).KvEach(func(key, value sdb.BS) {
+	db.Hrscan(name, []byte("k5"), 2).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), value.String())
 	})
 
 	fmt.Println("--- Hrscan 2 ---")
-	db.Hrscan(name, "k7", 4).KvEach(func(key, value sdb.BS) {
+	db.Hrscan(name, []byte("k7"), 4).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), value.String())
 	})
 
@@ -128,17 +129,18 @@ func main() {
 	fmt.Println(ii)
 
 	fmt.Println("zet set/get")
-	fmt.Println(db.Zset(name, "k1", 12))
-	fmt.Println(db.Zget(name, "k1"))
-	fmt.Println(db.Zincr(name, "k1", 2))
-	fmt.Println(db.Zincr(name, "k1", -3))
-	fmt.Println(db.Zdel(name, "k1"))
-	fmt.Println(db.Zget(name, "k1"))
-	fmt.Println(db.Zincr(name, "k1", 2))
-	fmt.Println(db.Zincr(name, "k2", 2))
+	k := []byte("k1")
+	fmt.Println(db.Zset(name, k, 12))
+	fmt.Println(db.Zget(name, k))
+	fmt.Println(db.Zincr(name, k, 2))
+	fmt.Println(db.Zincr(name, k, -3))
+	fmt.Println(db.Zdel(name, k))
+	fmt.Println(db.Zget(name, k))
+	fmt.Println(db.Zincr(name, k, 2))
+	fmt.Println(db.Zincr(name, []byte("k2"), 2))
 	fmt.Println(db.ZdelBucket(name))
-	fmt.Println(db.Zincr(name, "k1", 2))
-	fmt.Println(db.Zincr(name, "k2", 2))
+	fmt.Println(db.Zincr(name, k, 2))
+	fmt.Println(db.Zincr(name, []byte("k2"), 2))
 
 	// zmset
 	fmt.Println(db.Zmset(name, [][]byte{
@@ -170,7 +172,7 @@ func main() {
 	})
 
 	fmt.Println("-- Zscan")
-	db.Zscan(name, "k2", sdb.I2b(2), 30).KvEach(func(key, value sdb.BS) {
+	db.Zscan(name, []byte("k2"), sdb.I2b(2), 30).KvEach(func(key, value sdb.BS) {
 		fmt.Println(key.String(), sdb.B2i(value))
 	})
 
@@ -216,29 +218,29 @@ func main() {
 
 	fmt.Println("hprefix")
 	name = "n1"
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(1)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(2)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(3)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(4)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(5)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(1), sdb.I2b(6)}), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(1)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(2)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(3)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(4)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(5)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(1), sdb.I2b(6)), nil)
 
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(1)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(2)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(3)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(4)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(5)}), nil)
-	db.Hset(name, sdb.Bconcat([][]byte{sdb.I2b(2), sdb.I2b(6)}), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(1)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(2)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(3)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(4)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(5)), nil)
+	db.Hset(name, sdb.Bconcat(sdb.I2b(2), sdb.I2b(6)), nil)
 
-	db.Hset("n2", sdb.Bconcat([][]byte{sdb.I2b(1), []byte("a")}), "av")
-	db.Hset("n2", sdb.Bconcat([][]byte{sdb.I2b(1), []byte("b")}), "bv")
-	db.Hset("n2", sdb.Bconcat([][]byte{sdb.I2b(1), []byte("c")}), "cv")
-	db.Hset("n2", sdb.Bconcat([][]byte{sdb.I2b(1), []byte("d")}), "dv")
+	db.Hset("n2", sdb.Bconcat(sdb.I2b(1), []byte("a")), []byte("av"))
+	db.Hset("n2", sdb.Bconcat(sdb.I2b(1), []byte("b")), []byte("bv"))
+	db.Hset("n2", sdb.Bconcat(sdb.I2b(1), []byte("c")), []byte("cv"))
+	db.Hset("n2", sdb.Bconcat(sdb.I2b(1), []byte("d")), []byte("dv"))
 
-	db.Hset("n2", sdb.Bconcat([][]byte{[]byte("qq"), []byte("aq")}), "avq")
-	db.Hset("n2", sdb.Bconcat([][]byte{[]byte("qq"), []byte("bq")}), "bvq")
-	db.Hset("n2", sdb.Bconcat([][]byte{[]byte("qq"), []byte("qc")}), "cvq")
-	db.Hset("n2", sdb.Bconcat([][]byte{[]byte("qq"), []byte("dd")}), "dvq")
+	db.Hset("n2", sdb.Bconcat([]byte("qq"), []byte("aq")), []byte("avq"))
+	db.Hset("n2", sdb.Bconcat([]byte("qq"), []byte("bq")), []byte("bvq"))
+	db.Hset("n2", sdb.Bconcat([]byte("qq"), []byte("qc")), []byte("cvq"))
+	db.Hset("n2", sdb.Bconcat([]byte("qq"), []byte("dd")), []byte("dvq"))
 
 	db.Hprefix(name, sdb.I2b(1), 8).KvEach(func(key, value sdb.BS) {
 		fmt.Println(sdb.B2i(key[:8]))
@@ -267,6 +269,16 @@ func main() {
 	fmt.Println("Hscan")
 	db.Hscan(name, sdb.I2b(1), 8).KvEach(func(key, value sdb.BS) {
 		fmt.Println(sdb.B2i(key[:8]), sdb.B2i(key[8:]))
+	})
+
+	//
+	num := uint64(1583660405608876000)
+	db.Hset("aaa", sdb.I2b(num), nil)
+	db.Hset("aaa", sdb.I2b(num+1), nil)
+	db.Hset("aaa", sdb.I2b(num+2), nil)
+
+	db.Hscan("aaa", sdb.I2b(num), 4).KvEach(func(key, value sdb.BS) {
+		fmt.Println(sdb.B2i(key.Bytes()))
 	})
 
 }
