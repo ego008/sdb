@@ -61,7 +61,7 @@ func (db *DB) Close() error {
 	return db.DB.Close()
 }
 
-func args2b(args ...interface{}) []byte {
+func args2b2(args ...interface{}) []byte {
 	var buf bytes.Buffer
 	for _, arg := range args {
 
@@ -148,18 +148,18 @@ func args2b(args ...interface{}) []byte {
 }
 
 // Hset set the byte value in argument as value of the key of a hashmap.
-func (db *DB) Hset(name string, key, val interface{}) error {
-	realKey := args2b(hashPrefix, name, splitChar, key)
-	return db.Put(realKey, args2b(val), nil)
+func (db *DB) Hset(name string, key, val []byte) error {
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
+	return db.Put(realKey, val, nil)
 }
 
 // Hget get the value related to the specified key of a hashmap.
-func (db *DB) Hget(name string, key interface{}) *Reply {
+func (db *DB) Hget(name string, key []byte) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
-	realKey := args2b(hashPrefix, name, splitChar, key)
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
 	val, err := db.Get(realKey, nil)
 	if err != nil {
 		r.State = err.Error()
@@ -171,14 +171,14 @@ func (db *DB) Hget(name string, key interface{}) *Reply {
 }
 
 // Hmset set multiple key-value pairs of a hashmap in one method call.
-func (db *DB) Hmset(name string, kvs []interface{}) error {
+func (db *DB) Hmset(name string, kvs ...[]byte) error {
 	if len(kvs) == 0 || len(kvs)%2 != 0 {
 		return errors.New("kvs len must is an even number")
 	}
-	keyPrefix := args2b(hashPrefix, name, splitChar)
+	keyPrefix := Bconcat(hashPrefix, S2b(name), splitChar)
 	batch := new(leveldb.Batch)
 	for i := 0; i < (len(kvs) - 1); i += 2 {
-		batch.Put(args2b(keyPrefix, kvs[i]), args2b(kvs[i+1]))
+		batch.Put(Bconcat(keyPrefix, kvs[i]), kvs[i+1])
 	}
 	return db.Write(batch, nil)
 }
@@ -190,9 +190,9 @@ func (db *DB) Hmget(name string, keys [][]byte) *Reply {
 		Data:  []BS{},
 	}
 
-	keyPrefix := args2b(hashPrefix, name, splitChar)
+	keyPrefix := Bconcat(hashPrefix, S2b(name), splitChar)
 	for _, key := range keys {
-		val, err := db.Get(args2b(keyPrefix, key), nil)
+		val, err := db.Get(Bconcat(keyPrefix, key), nil)
 		if err != nil {
 			continue
 		}
@@ -205,8 +205,8 @@ func (db *DB) Hmget(name string, keys [][]byte) *Reply {
 }
 
 // Hincr increment the number stored at key in a hashmap by step.
-func (db *DB) Hincr(name string, key interface{}, step int64) (newNum uint64, err error) {
-	realKey := args2b(hashPrefix, name, splitChar, key)
+func (db *DB) Hincr(name string, key []byte, step int64) (newNum uint64, err error) {
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
 	var oldNum uint64
 	var val []byte
 	val, err = db.Get(realKey, nil)
@@ -236,8 +236,8 @@ func (db *DB) Hincr(name string, key interface{}, step int64) (newNum uint64, er
 }
 
 // HgetInt get the value related to the specified key of a hashmap.
-func (db *DB) HgetInt(name string, key interface{}) uint64 {
-	realKey := args2b(hashPrefix, name, splitChar, key)
+func (db *DB) HgetInt(name string, key []byte) uint64 {
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
 	val, err := db.Get(realKey, nil)
 	if err != nil {
 		return 0
@@ -245,8 +245,8 @@ func (db *DB) HgetInt(name string, key interface{}) uint64 {
 	return B2i(val)
 }
 
-func (db *DB) HhasKey(name string, key interface{}) bool {
-	realKey := args2b(hashPrefix, name, splitChar, key)
+func (db *DB) HhasKey(name string, key []byte) bool {
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
 	_, err := db.Get(realKey, nil)
 	if err != nil {
 		return false
@@ -255,16 +255,16 @@ func (db *DB) HhasKey(name string, key interface{}) bool {
 }
 
 // Hdel delete specified key of a hashmap.
-func (db *DB) Hdel(name string, key interface{}) error {
-	return db.Delete(args2b(hashPrefix, name, splitChar, key), nil)
+func (db *DB) Hdel(name string, key []byte) error {
+	return db.Delete(Bconcat(hashPrefix, S2b(name), splitChar, key), nil)
 }
 
 // Hmdel delete specified multiple keys of a hashmap.
 func (db *DB) Hmdel(name string, keys [][]byte) error {
 	batch := new(leveldb.Batch)
-	keyPrefix := args2b(hashPrefix, name, splitChar)
+	keyPrefix := Bconcat(hashPrefix, S2b(name), splitChar)
 	for _, key := range keys {
-		batch.Delete(args2b(keyPrefix, key))
+		batch.Delete(Bconcat(keyPrefix, key))
 	}
 	return db.Write(batch, nil)
 }
@@ -272,7 +272,7 @@ func (db *DB) Hmdel(name string, keys [][]byte) error {
 // HdelBucket delete all keys in a hashmap.
 func (db *DB) HdelBucket(name string) error {
 	batch := new(leveldb.Batch)
-	iter := db.NewIterator(util.BytesPrefix(args2b(hashPrefix, name, splitChar)), nil)
+	iter := db.NewIterator(util.BytesPrefix(Bconcat(hashPrefix, S2b(name), splitChar)), nil)
 	for iter.Next() {
 		batch.Delete(iter.Key())
 	}
@@ -285,13 +285,13 @@ func (db *DB) HdelBucket(name string) error {
 }
 
 // Hscan list key-value pairs of a hashmap with keys in range (key_start, key_end].
-func (db *DB) Hscan(name string, keyStart interface{}, limit int) *Reply {
+func (db *DB) Hscan(name string, keyStart []byte, limit int) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
-	keyPrefix := args2b(hashPrefix, name, splitChar)
-	realKey := args2b(keyPrefix, keyStart)
+	keyPrefix := Bconcat(hashPrefix, S2b(name), splitChar)
+	realKey := Bconcat(keyPrefix, keyStart)
 	keyPrefixLen := len(keyPrefix)
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
@@ -327,17 +327,15 @@ func (db *DB) Hscan(name string, keyStart interface{}, limit int) *Reply {
 	return r
 }
 
-func (db *DB) Hprefix(name string, prefix interface{}, limit int) *Reply {
+func (db *DB) Hprefix(name string, prefix []byte, limit int) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
-	prefixB := args2b(prefix)
-	keyPrefix := args2b(hashPrefix, name, splitChar, prefixB)
-	realKey := keyPrefix[:]
-	keyPrefixLen := len(keyPrefix)
+	realKey := Bconcat(hashPrefix, S2b(name), splitChar, prefix) // keyPrefix
+	keyPrefixLen := len(realKey)
 	n := 0
-	sliceRange := util.BytesPrefix(keyPrefix)
+	sliceRange := util.BytesPrefix(realKey)
 	if len(realKey) > keyPrefixLen {
 		sliceRange.Start = realKey
 	} else {
@@ -371,13 +369,13 @@ func (db *DB) Hprefix(name string, prefix interface{}, limit int) *Reply {
 }
 
 // Hrscan list key-value pairs of a hashmap with keys in range (key_start, key_end], in reverse order.
-func (db *DB) Hrscan(name string, keyStart interface{}, limit int) *Reply {
+func (db *DB) Hrscan(name string, keyStart []byte, limit int) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
-	keyPrefix := args2b(hashPrefix, name, splitChar)
-	realKey := args2b(keyPrefix, keyStart)
+	keyPrefix := Bconcat(hashPrefix, S2b(name), splitChar)
+	realKey := Bconcat(keyPrefix, keyStart)
 	keyPrefixLen := len(keyPrefix)
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
@@ -412,25 +410,27 @@ func (db *DB) Hrscan(name string, keyStart interface{}, limit int) *Reply {
 }
 
 // Zset set the score of the key of a zset.
-func (db *DB) Zset(name string, key interface{}, val uint64) error {
+func (db *DB) Zset(name string, key []byte, val uint64) error {
+	nameB := S2b(name)
 	score := I2b(val)
-	keyScore := args2b(zetScorePrefix, name, splitChar, key)                    // key / score
-	newScoreKey := args2b(zetKeyPrefix, name, splitChar, score, splitChar, key) // name+score+key / nil
+	keyScore := Bconcat(zetScorePrefix, nameB, splitChar, key)                    // key / score
+	newScoreKey := Bconcat(zetKeyPrefix, nameB, splitChar, score, splitChar, key) // name+score+key / nil
 
 	oldScore, _ := db.Get(keyScore, nil)
 	if !bytes.Equal(oldScore, score) {
 		batch := new(leveldb.Batch)
 		batch.Put(keyScore, score)
 		batch.Put(newScoreKey, nil)
-		batch.Delete(args2b(zetKeyPrefix, name, splitChar, oldScore, splitChar, key))
+		batch.Delete(Bconcat(zetKeyPrefix, nameB, splitChar, oldScore, splitChar, key))
 		return db.Write(batch, nil)
 	}
 	return nil
 }
 
 // Zincr increment the number stored at key in a zset by step.
-func (db *DB) Zincr(name string, key interface{}, step int64) (uint64, error) {
-	keyScore := args2b(zetScorePrefix, name, splitChar, key) // key / score
+func (db *DB) Zincr(name string, key []byte, step int64) (uint64, error) {
+	nameB := S2b(name)
+	keyScore := Bconcat(zetScorePrefix, nameB, splitChar, key) // key / score
 
 	score := db.Zget(name, key) // get old score
 	oldScoreB := I2b(score)     // old score byte
@@ -450,8 +450,8 @@ func (db *DB) Zincr(name string, key interface{}, step int64) (uint64, error) {
 
 	batch := new(leveldb.Batch)
 	batch.Put(keyScore, newScoreB)
-	batch.Put(args2b(zetKeyPrefix, name, splitChar, newScoreB, splitChar, key), nil)
-	batch.Delete(args2b(zetKeyPrefix, name, splitChar, oldScoreB, splitChar, key))
+	batch.Put(Bconcat(zetKeyPrefix, nameB, splitChar, newScoreB, splitChar, key), nil)
+	batch.Delete(Bconcat(zetKeyPrefix, nameB, splitChar, oldScoreB, splitChar, key))
 	err := db.Write(batch, nil)
 	if err != nil {
 		return 0, err
@@ -460,16 +460,16 @@ func (db *DB) Zincr(name string, key interface{}, step int64) (uint64, error) {
 }
 
 // Zget get the score related to the specified key of a zset.
-func (db *DB) Zget(name string, key interface{}) uint64 {
-	val, err := db.Get(args2b(zetScorePrefix, name, splitChar, key), nil)
+func (db *DB) Zget(name string, key []byte) uint64 {
+	val, err := db.Get(Bconcat(zetScorePrefix, S2b(name), splitChar, key), nil)
 	if err != nil {
 		return 0
 	}
 	return B2i(val)
 }
 
-func (db *DB) ZhasKey(name string, key interface{}) bool {
-	_, err := db.Get(args2b(zetScorePrefix, name, splitChar, key), nil)
+func (db *DB) ZhasKey(name string, key []byte) bool {
+	_, err := db.Get(Bconcat(zetScorePrefix, S2b(name), splitChar, key), nil)
 	if err != nil {
 		return false
 	}
@@ -477,8 +477,9 @@ func (db *DB) ZhasKey(name string, key interface{}) bool {
 }
 
 // Zdel delete specified key of a zset.
-func (db *DB) Zdel(name string, key interface{}) error {
-	keyScore := args2b(zetScorePrefix, name, splitChar, key) // key / score
+func (db *DB) Zdel(name string, key []byte) error {
+	nameB := S2b(name)
+	keyScore := Bconcat(zetScorePrefix, nameB, splitChar, key) // key / score
 
 	oldScore, err := db.Get(keyScore, nil)
 	if err != nil {
@@ -487,15 +488,16 @@ func (db *DB) Zdel(name string, key interface{}) error {
 
 	batch := new(leveldb.Batch)
 	batch.Delete(keyScore)
-	batch.Delete(args2b(zetKeyPrefix, name, splitChar, oldScore, splitChar, key))
+	batch.Delete(Bconcat(zetKeyPrefix, nameB, splitChar, oldScore, splitChar, key))
 	return db.Write(batch, nil)
 }
 
 // ZdelBucket delete all keys in a zset.
 func (db *DB) ZdelBucket(name string) error {
+	nameB := S2b(name)
 	batch := new(leveldb.Batch)
 
-	iter := db.NewIterator(util.BytesPrefix(args2b(zetScorePrefix, name, splitChar)), nil)
+	iter := db.NewIterator(util.BytesPrefix(Bconcat(zetScorePrefix, nameB, splitChar)), nil)
 	for iter.Next() {
 		batch.Delete(iter.Key())
 	}
@@ -505,7 +507,7 @@ func (db *DB) ZdelBucket(name string) error {
 		return err
 	}
 
-	iter = db.NewIterator(util.BytesPrefix(args2b(zetKeyPrefix, name, splitChar)), nil)
+	iter = db.NewIterator(util.BytesPrefix(Bconcat(zetKeyPrefix, nameB, splitChar)), nil)
 	for iter.Next() {
 		batch.Delete(iter.Key())
 	}
@@ -523,22 +525,23 @@ func (db *DB) Zmset(name string, kvs [][]byte) error {
 	if len(kvs) == 0 || len(kvs)%2 != 0 {
 		return errors.New("kvs len must is an even number")
 	}
+	nameB := S2b(name)
 
-	keyPrefix1 := args2b(zetScorePrefix, name, splitChar)
-	keyPrefix2 := args2b(zetKeyPrefix, name, splitChar)
+	keyPrefix1 := Bconcat(zetScorePrefix, nameB, splitChar)
+	keyPrefix2 := Bconcat(zetKeyPrefix, nameB, splitChar)
 
 	batch := new(leveldb.Batch)
 	for i := 0; i < (len(kvs) - 1); i += 2 {
 		key, score := kvs[i], kvs[i+1]
 
-		keyScore := args2b(keyPrefix1, key)                      // key / score
-		newScoreKey := args2b(keyPrefix2, score, splitChar, key) // name+score+key / nil
+		keyScore := Bconcat(keyPrefix1, key)                      // key / score
+		newScoreKey := Bconcat(keyPrefix2, score, splitChar, key) // name+score+key / nil
 
 		oldScore, _ := db.Get(keyScore, nil)
 		if !bytes.Equal(oldScore, score) {
 			batch.Put(keyScore, score)
 			batch.Put(newScoreKey, nil)
-			batch.Delete(args2b(keyPrefix2, oldScore, splitChar, key))
+			batch.Delete(Bconcat(keyPrefix2, oldScore, splitChar, key))
 		}
 	}
 	return db.Write(batch, nil)
@@ -551,9 +554,9 @@ func (db *DB) Zmget(name string, keys [][]byte) *Reply {
 		Data:  []BS{},
 	}
 
-	keyPrefix := args2b(zetScorePrefix, name, splitChar)
+	keyPrefix := Bconcat(zetScorePrefix, S2b(name), splitChar)
 	for _, key := range keys {
-		val, err := db.Get(args2b(keyPrefix, key), nil)
+		val, err := db.Get(Bconcat(keyPrefix, key), nil)
 		if err != nil {
 			continue
 		}
@@ -567,40 +570,39 @@ func (db *DB) Zmget(name string, keys [][]byte) *Reply {
 
 // Zmdel delete specified multiple keys of a zset.
 func (db *DB) Zmdel(name string, keys [][]byte) error {
+	nameB := S2b(name)
 	batch := new(leveldb.Batch)
-	keyPrefix := args2b(zetScorePrefix, name, splitChar)
-	keyPrefix2 := args2b(zetKeyPrefix, name, splitChar)
+	keyPrefix := Bconcat(zetScorePrefix, nameB, splitChar)
+	keyPrefix2 := Bconcat(zetKeyPrefix, nameB, splitChar)
 	for _, key := range keys {
-		keyScore := args2b(keyPrefix, key) // key / score
+		keyScore := Bconcat(keyPrefix, key) // key / score
 		oldScore, err := db.Get(keyScore, nil)
 		if err != nil {
 			continue
 		}
 		batch.Delete(keyScore)
-		batch.Delete(args2b(keyPrefix2, oldScore, splitChar, key))
+		batch.Delete(Bconcat(keyPrefix2, oldScore, splitChar, key))
 	}
 	return db.Write(batch, nil)
 }
 
 // Zscan list key-score pairs in a zset, where key-score in range (key_start+score_start, score_end].
-func (db *DB) Zscan(name string, keyStart interface{}, scoreStart []byte, limit int) *Reply {
+func (db *DB) Zscan(name string, keyStart, scoreStart []byte, limit int) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
 
-	keyStartB := args2b(keyStart)
-
 	if len(scoreStart) == 0 {
 		scoreStart = I2b(scoreMin)
 	}
 
-	keyPrefix := args2b(zetKeyPrefix, name, splitChar)
-	realKey := args2b(keyPrefix, scoreStart, splitChar, keyStartB)
+	keyPrefix := Bconcat(zetKeyPrefix, S2b(name), splitChar)
+	realKey := Bconcat(keyPrefix, scoreStart, splitChar, keyStart)
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
-	if len(keyStartB) == 0 {
-		realKey = util.BytesPrefix(args2b(keyPrefix, scoreStart, splitChar)).Limit
+	if len(keyStart) == 0 {
+		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Limit
 	}
 	sliceRange.Start = realKey
 	iter := db.NewIterator(sliceRange, nil)
@@ -632,24 +634,22 @@ func (db *DB) Zscan(name string, keyStart interface{}, scoreStart []byte, limit 
 }
 
 // Zrscan list key-score pairs of a zset, in reverse order.
-func (db *DB) Zrscan(name string, keyStart interface{}, scoreStart []byte, limit int) *Reply {
+func (db *DB) Zrscan(name string, keyStart, scoreStart []byte, limit int) *Reply {
 	r := &Reply{
 		State: replyError,
 		Data:  []BS{},
 	}
 
-	keyStartB := args2b(keyStart)
-
 	if len(scoreStart) == 0 {
 		scoreStart = I2b(scoreMax)
 	}
 
-	keyPrefix := args2b(zetKeyPrefix, name, splitChar)
-	realKey := args2b(keyPrefix, scoreStart, splitChar, keyStartB)
+	keyPrefix := Bconcat(zetKeyPrefix, S2b(name), splitChar)
+	realKey := Bconcat(keyPrefix, scoreStart, splitChar, keyStart)
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
-	if len(keyStartB) == 0 {
-		realKey = util.BytesPrefix(args2b(keyPrefix, scoreStart, splitChar)).Start
+	if len(keyStart) == 0 {
+		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Start
 	}
 	sliceRange.Limit = realKey
 	iter := db.NewIterator(sliceRange, nil)
@@ -786,16 +786,14 @@ func (b BS) Uint() uint {
 
 // Uint64 is a convenience wrapper over Get for uint64 value of a hashmap.
 func (b BS) Uint64() uint64 {
-	if len(b) > 0 {
-		if i64, err := strconv.ParseUint(B2s(b), 10, 64); err == nil {
-			return i64
-		}
+	if len(b) < 8 {
+		return 0
 	}
-	return 0
+	return binary.BigEndian.Uint64(b)
 }
 
 // Bconcat concat a list of byte
-func Bconcat(slices [][]byte) []byte {
+func Bconcat(slices ...[]byte) []byte {
 	var totalLen int
 	for _, s := range slices {
 		totalLen += len(s)
