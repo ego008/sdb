@@ -605,13 +605,18 @@ func (db *DB) Zscan(name string, keyStart, scoreStart []byte, limit int) *Reply 
 		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Limit
 	}
 	sliceRange.Start = realKey
+	
+	// key: zetKeyPrefix, S2b(name), splitChar, scoreStart, splitChar, keyStart
+	keyPrefixLen := len(keyPrefix)
+	keyIndex := keyPrefixLen + 9
+	scoreEnd := keyPrefixLen + 8
+	
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if bytes.Compare(realKey, iter.Key()) == -1 {
-			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, keyLst[2]...), // key
-				append([]byte{}, keyLst[1]...), // score
+				append([]byte{}, iter.Key()[keyIndex:]...),             // key
+				append([]byte{}, iter.Key()[keyPrefixLen:scoreEnd]...), // score
 			)
 			n++
 			if n == limit {
@@ -652,13 +657,18 @@ func (db *DB) Zrscan(name string, keyStart, scoreStart []byte, limit int) *Reply
 		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Start
 	}
 	sliceRange.Limit = realKey
+	
+	// key: zetKeyPrefix, S2b(name), splitChar, scoreStart, splitChar, keyStart
+	keyPrefixLen := len(keyPrefix)
+	keyIndex := keyPrefixLen + 9
+	scoreEnd := keyPrefixLen + 8
+	
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.Last(); ok; ok = iter.Prev() {
 		if bytes.Compare(realKey, iter.Key()) == 1 {
-			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, keyLst[2]...), // key
-				append([]byte{}, keyLst[1]...), // score
+				append([]byte{}, iter.Key()[keyIndex:]...),             // key
+				append([]byte{}, iter.Key()[keyPrefixLen:scoreEnd]...), // score
 			)
 			n++
 			if n == limit {
