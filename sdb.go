@@ -8,6 +8,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"reflect"
+	"runtime"
 	"strconv"
 	"unsafe"
 )
@@ -605,18 +606,13 @@ func (db *DB) Zscan(name string, keyStart, scoreStart []byte, limit int) *Reply 
 		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Limit
 	}
 	sliceRange.Start = realKey
-	
-	// key: zetKeyPrefix, S2b(name), splitChar, scoreStart, splitChar, keyStart
-	keyPrefixLen := len(keyPrefix)
-	keyIndex := keyPrefixLen + 9
-	scoreEnd := keyPrefixLen + 8
-	
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if bytes.Compare(realKey, iter.Key()) == -1 {
+			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, iter.Key()[keyIndex:]...),             // key
-				append([]byte{}, iter.Key()[keyPrefixLen:scoreEnd]...), // score
+				append([]byte{}, keyLst[2]...), // key
+				append([]byte{}, keyLst[1]...), // score
 			)
 			n++
 			if n == limit {
@@ -657,18 +653,13 @@ func (db *DB) Zrscan(name string, keyStart, scoreStart []byte, limit int) *Reply
 		realKey = util.BytesPrefix(Bconcat(keyPrefix, scoreStart, splitChar)).Start
 	}
 	sliceRange.Limit = realKey
-	
-	// key: zetKeyPrefix, S2b(name), splitChar, scoreStart, splitChar, keyStart
-	keyPrefixLen := len(keyPrefix)
-	keyIndex := keyPrefixLen + 9
-	scoreEnd := keyPrefixLen + 8
-	
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.Last(); ok; ok = iter.Prev() {
 		if bytes.Compare(realKey, iter.Key()) == 1 {
+			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, iter.Key()[keyIndex:]...),             // key
-				append([]byte{}, iter.Key()[keyPrefixLen:scoreEnd]...), // score
+				append([]byte{}, keyLst[2]...), // key
+				append([]byte{}, keyLst[1]...), // score
 			)
 			n++
 			if n == limit {
@@ -862,17 +853,20 @@ func B2i(v []byte) uint64 {
 // B2s converts byte slice to a string without memory allocation.
 // []byte("abc") -> "abc" s
 func B2s(b []byte) string {
+	/* #nosec G103 */
 	return *(*string)(unsafe.Pointer(&b))
 }
 
 // S2b converts string to a byte slice without memory allocation.
 // "abc" -> []byte("abc")
-func S2b(s string) []byte {
+func S2b(s string) (b []byte) {
+	/* #nosec G103 */
+	bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	/* #nosec G103 */
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh := reflect.SliceHeader{
-		Data: sh.Data,
-		Len:  sh.Len,
-		Cap:  sh.Len,
-	}
-	return *(*[]byte)(unsafe.Pointer(&bh))
+	bh.Data = sh.Data
+	bh.Cap = sh.Len
+	bh.Len = sh.Len
+	runtime.KeepAlive(&s)
+	return b
 }
