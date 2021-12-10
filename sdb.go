@@ -7,6 +7,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"math"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -17,8 +18,9 @@ const (
 	replyOK              = "ok"
 	replyNotFound        = "leveldb: not found"
 	replyError           = "error"
+	scoreByteLen         = 8
 	scoreMin      uint64 = 0
-	scoreMax      uint64 = 18446744073709551615
+	scoreMax      uint64 = math.MaxUint64 // 18446744073709551615
 )
 
 var (
@@ -600,6 +602,11 @@ func (db *DB) Zscan(name string, keyStart, scoreStart []byte, limit int) *Reply 
 
 	keyPrefix := Bconcat(zetKeyPrefix, S2b(name), splitChar)
 	realKey := Bconcat(keyPrefix, scoreStart, splitChar, keyStart)
+	// zetKeyPrefix+name+splitChar+score+splitChar+key
+	// split by splitChar: [zetKeyPrefix+name, score, key, ...]
+	scoreBeginIndex := len(keyPrefix)
+	scoreEndIndex := scoreBeginIndex + scoreByteLen
+	keyBeginIndex := scoreBeginIndex + scoreByteLen + 1
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
 	if len(keyStart) == 0 {
@@ -609,10 +616,9 @@ func (db *DB) Zscan(name string, keyStart, scoreStart []byte, limit int) *Reply 
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if bytes.Compare(realKey, iter.Key()) == -1 {
-			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, keyLst[2]...), // key
-				append([]byte{}, keyLst[1]...), // score
+				append([]byte{}, iter.Key()[keyBeginIndex:]...),                // key
+				append([]byte{}, iter.Key()[scoreBeginIndex:scoreEndIndex]...), // score
 			)
 			n++
 			if n == limit {
@@ -647,6 +653,9 @@ func (db *DB) Zrscan(name string, keyStart, scoreStart []byte, limit int) *Reply
 
 	keyPrefix := Bconcat(zetKeyPrefix, S2b(name), splitChar)
 	realKey := Bconcat(keyPrefix, scoreStart, splitChar, keyStart)
+	scoreBeginIndex := len(keyPrefix)
+	scoreEndIndex := scoreBeginIndex + scoreByteLen
+	keyBeginIndex := scoreBeginIndex + scoreByteLen + 1
 	n := 0
 	sliceRange := util.BytesPrefix(keyPrefix)
 	if len(keyStart) == 0 {
@@ -656,10 +665,9 @@ func (db *DB) Zrscan(name string, keyStart, scoreStart []byte, limit int) *Reply
 	iter := db.NewIterator(sliceRange, nil)
 	for ok := iter.Last(); ok; ok = iter.Prev() {
 		if bytes.Compare(realKey, iter.Key()) == 1 {
-			keyLst := bytes.Split(iter.Key(), splitChar)
 			r.Data = append(r.Data,
-				append([]byte{}, keyLst[2]...), // key
-				append([]byte{}, keyLst[1]...), // score
+				append([]byte{}, iter.Key()[keyBeginIndex:]...),                // key
+				append([]byte{}, iter.Key()[scoreBeginIndex:scoreEndIndex]...), // score
 			)
 			n++
 			if n == limit {
