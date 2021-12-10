@@ -847,7 +847,7 @@ func B2i(v []byte) uint64 {
 	if len(v) < 8 {
 		return 0
 	}
-	return binary.BigEndian.Uint64(v)
+	return binary.BigEndian.Uint64(v[:8])
 }
 
 // B2s converts byte slice to a string without memory allocation.
