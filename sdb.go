@@ -3,8 +3,8 @@ package sdb
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"math"
@@ -53,7 +53,13 @@ type (
 func Open(dbPath string, o *opt.Options) (*DB, error) {
 	database, err := leveldb.OpenFile(dbPath, o)
 	if err != nil {
-		return nil, err
+		if errors.IsCorrupted(err) {
+			if database, err = leveldb.RecoverFile(dbPath, o); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	return &DB{database}, nil
