@@ -256,11 +256,11 @@ func (db *DB) HgetInt(name string, key []byte) uint64 {
 
 func (db *DB) HhasKey(name string, key []byte) bool {
 	realKey := Bconcat(hashPrefix, S2b(name), splitChar, key)
-	_, err := db.Has(realKey, nil)
+	has, err := db.Has(realKey, nil)
 	if err != nil {
 		return false
 	}
-	return true
+	return has
 }
 
 // Hdel delete specified key of a hashmap.
@@ -478,11 +478,11 @@ func (db *DB) Zget(name string, key []byte) uint64 {
 }
 
 func (db *DB) ZhasKey(name string, key []byte) bool {
-	_, err := db.Has(Bconcat(zetScorePrefix, S2b(name), splitChar, key), nil)
+	has, err := db.Has(Bconcat(zetScorePrefix, S2b(name), splitChar, key), nil)
 	if err != nil {
 		return false
 	}
-	return true
+	return has
 }
 
 // Zdel delete specified key of a zset.
